@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Продление подписки</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>Продление подписки</h1>
+
+    <section class="card">
+      <label for="userId">ID пользователя</label>
+      <input id="userId" type="text" placeholder="Введите ID пользователя" />
+
+      <label for="duration">Тариф</label>
+      <select id="duration">
+        <option value="1">1 месяц</option>
+        <option value="3">3 месяца</option>
+        <option value="6">6 месяцев</option>
+        <option value="12">12 месяцев</option>
+      </select>
+
+      <button id="extendBtn">Продлить</button>
+
+      <div id="result" class="result"></div>
+    </section>
+  </div>
+
+  <script src="/static/script.js"></script>
+</body>
+</html>
