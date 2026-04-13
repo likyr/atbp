@@ -35,7 +35,11 @@ class ExtendRequest(BaseModel):
 
 @app.get("/status")
 def status():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "service": "Subscription API",
+        "version": "1.0.0"
+    }
 
 
 @app.get("/api/payments/last-transaction/{user_id}")

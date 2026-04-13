@@ -2,17 +2,35 @@ name: CI Pipeline
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main ]
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
 
 jobs:
-  test:
+  actionlint:
+    name: Lint workflows with actionlint
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.11", "3.12"]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Run actionlint
+        uses: rhysd/actionlint@v1
 
+  behave-tests:
+    name: Behave (${{ matrix.os }}, Node ${{ matrix.node-version }})
+    runs-on: ${{ matrix.os }}
+    needs: actionlint
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node-version: [18, 20, 22]
+        python-version: ["3.12"]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -22,10 +40,102 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install Node.js (needed for Playwright and Allure CLI)
+      - name: Set up Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Behave tests with Allure formatter
+        run: python -m behave -f allure_behave.formatter:AllureFormatter -o allure-results
+
+      - name: Upload Behave Allure results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results-behave-${{ matrix.os }}-node${{ matrix.node-version }}
+          path: allure-results
+          if-no-files-found: ignore
+
+  playwright-tests:
+    name: Playwright (${{ matrix.os }}, Node ${{ matrix.node-version }})
+    runs-on: ${{ matrix.os }}
+    needs: actionlint
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            node-version: 18
+            python-version: "3.12"
+            playwright-cache-path: ~/.cache/ms-playwright
+          - os: ubuntu-latest
+            node-version: 20
+            python-version: "3.12"
+            playwright-cache-path: ~/.cache/ms-playwright
+          - os: ubuntu-latest
+            node-version: 22
+            python-version: "3.12"
+            playwright-cache-path: ~/.cache/ms-playwright
+          - os: windows-latest
+            node-version: 18
+            python-version: "3.12"
+            playwright-cache-path: ~\AppData\Local\ms-playwright
+          - os: windows-latest
+            node-version: 20
+            python-version: "3.12"
+            playwright-cache-path: ~\AppData\Local\ms-playwright
+          - os: windows-latest
+            node-version: 22
+            python-version: "3.12"
+            playwright-cache-path: ~\AppData\Local\ms-playwright
+          - os: macos-latest
+            node-version: 18
+            python-version: "3.12"
+            playwright-cache-path: ~/Library/Caches/ms-playwright
+          - os: macos-latest
+            node-version: 20
+            python-version: "3.12"
+            playwright-cache-path: ~/Library/Caches/ms-playwright
+          - os: macos-latest
+            node-version: 22
+            python-version: "3.12"
+            playwright-cache-path: ~/Library/Caches/ms-playwright
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node${{ matrix.node-version }}-modules-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node${{ matrix.node-version }}-modules-
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ${{ matrix.playwright-cache-path }}
+          key: ${{ runner.os }}-node${{ matrix.node-version }}-playwright-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node${{ matrix.node-version }}-playwright-
 
       - name: Install dependencies
         run: |
@@ -36,53 +146,73 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
 
-      - name: Start server in background
-        run: |
-          nohup python main.py > server.log 2>&1 &
-          sleep 10 # Ждем запуска сервера, либо используйте wait-on, если настроен
+      - name: Run Playwright tests with Allure reporter
+        run: npm run test:allure
 
-      - name: Run Tests (Playwright/Cucumber) and generate Allure results
-        run: |
-          # Замените команду на ту, что используется в вашем проекте для тестов
-          pytest --alluredir=allure-results
-
-      - name: Upload Allure results
+      - name: Upload Playwright Allure results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: allure-results-${{ matrix.python-version }}
-          path: allure-results/
+          name: allure-results-playwright-${{ matrix.os }}-node${{ matrix.node-version }}
+          path: allure-results
+          if-no-files-found: ignore
 
-  generate-report:
+  generate-allure-report:
+    name: Generate and publish Allure report
     runs-on: ubuntu-latest
-    needs: test
+    needs: [behave-tests, playwright-tests]
     if: always()
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
+      - name: Setup Node.js for Allure CLI
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: Install Allure CLI
         run: npm install -g allure-commandline
 
-      - name: Download all Allure results
+      - name: Download Allure results from all jobs
         uses: actions/download-artifact@v4
         with:
-          path: all-allure-results/
+          path: all-allure-results
           pattern: allure-results-*
           merge-multiple: true
 
-      - name: Generate Allure Report
-        run: allure generate all-allure-results/ -o allure-report --clean
+      - name: Generate Allure report
+        run: allure generate all-allure-results -o allure-report --clean
 
-      - name: Deploy report to Github Pages
+      - name: Configure GitHub Pages
         if: github.ref == 'refs/heads/main'
-        uses: peaceiris/actions-gh-pages@v4
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_branch: gh-pages
-          publish_dir: allure-report
+          path: allure-report
+
+      - name: Deploy to GitHub Pages
+        if: github.ref == 'refs/heads/main'
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  telegram-notify:
+    name: Telegram notification
+    runs-on: ubuntu-latest
+    needs: [behave-tests, playwright-tests, generate-allure-report]
+    if: always() && secrets.TELEGRAM_BOT_TOKEN != '' && secrets.TELEGRAM_CHAT_ID != ''
+    steps:
+      - name: Send CI status to Telegram
+        uses: appleboy/telegram-action@v1.0.1
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: |
+            CI status: ${{ job.status }}
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            Actor: ${{ github.actor }}
+            Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}

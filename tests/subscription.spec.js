@@ -43,6 +43,15 @@ test.describe('Продление подписки', () => {
     await expect(subscriptionPage.resultArea).toContainText('Введите ID пользователя');
     expect(await subscriptionPage.expectError()).toBeTruthy();
   });
+
+  test('endpoint /status возвращает метаданные сервиса', async ({ request }) => {
+    const response = await request.get('/status');
+    expect(response.ok()).toBeTruthy();
+    const body = await response.json();
+    expect(body.status).toBe('ok');
+    expect(body.service).toBe('Subscription API');
+    expect(body.version).toBe('1.0.0');
+  });
 });
 
 const successCases = [

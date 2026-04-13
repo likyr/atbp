@@ -29,3 +29,7 @@ Feature: Subscription extension
     Given the service is available
     When I send extension request for "user1" with date "2024-03-15" and duration 2
     Then the response status should be 400
+
+  Scenario: Service metadata in status endpoint
+    Given the service is available
+    Then status response should contain service "Subscription API" and version "1.0.0"

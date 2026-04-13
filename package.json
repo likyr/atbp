@@ -3,11 +3,13 @@
   "version": "1.0.0",
   "scripts": {
     "test": "npx playwright test",
+    "test:allure": "npx playwright test --reporter=line,allure-playwright",
     "test:headed": "npx playwright test --headed",
     "test:debug": "npx playwright test --debug",
     "test:report": "npx playwright show-report"
   },
   "devDependencies": {
-    "@playwright/test": "^1.52.0"
+    "@playwright/test": "^1.52.0",
+    "allure-playwright": "^3.4.1"
   }
 }

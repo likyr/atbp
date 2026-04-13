@@ -45,3 +45,11 @@ def step_check_status(context, status_code):
 def step_check_end_date(context, expected_end_date):
     data = context.response.json()
     assert data["end_date"] == expected_end_date, f'should be "{expected_end_date}"'
+
+
+@then('status response should contain service "{service_name}" and version "{version}"')
+def step_check_status_metadata(context, service_name, version):
+    data = context.response.json()
+    assert data["status"] == "ok"
+    assert data["service"] == service_name
+    assert data["version"] == version
