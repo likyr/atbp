@@ -61,13 +61,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Добавляем установку Node.js для работы Allure CLI
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      # Устанавливаем сам генератор отчетов
       - name: Install Allure CLI
         run: npm install -g allure-commandline
 
@@ -78,11 +76,9 @@ jobs:
           pattern: allure-results-*
           merge-multiple: true
 
-      # Вручную генерируем HTML-отчет из сырых данных
       - name: Generate Allure Report
         run: allure generate all-allure-results/ -o allure-report --clean
 
-      # Публикуем сгенерированную папку (allure-report) на GitHub Pages
       - name: Deploy report to Github Pages
         if: github.ref == 'refs/heads/main'
         uses: peaceiris/actions-gh-pages@v4
