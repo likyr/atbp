@@ -61,6 +61,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Добавляем установку Node.js для работы Allure CLI
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Устанавливаем сам генератор отчетов
+      - name: Install Allure CLI
+        run: npm install -g allure-commandline
+
       - name: Download all Allure results
         uses: actions/download-artifact@v4
         with:
@@ -68,17 +78,15 @@ jobs:
           pattern: allure-results-*
           merge-multiple: true
 
-      - name: Allure Report action
-        uses: simple-elf/allure-report-action@v1.12
-        if: always()
-        with:
-          allure_results: all-allure-results
-          allure_history: allure-history
+      # Вручную генерируем HTML-отчет из сырых данных
+      - name: Generate Allure Report
+        run: allure generate all-allure-results/ -o allure-report --clean
 
+      # Публикуем сгенерированную папку (allure-report) на GitHub Pages
       - name: Deploy report to Github Pages
         if: github.ref == 'refs/heads/main'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
-          publish_dir: allure-history
+          publish_dir: allure-report
