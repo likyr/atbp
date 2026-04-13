@@ -36,7 +36,7 @@ def step_send_extension_request(context, user_id, start_date, duration):
     context.response = response
 
 
-@then('the response status should b {status_code:d}')
+@then('the response status should be {status_code:d}')
 def step_check_status(context, status_code):
     assert context.response.status_code == status_code, context.response.text
 
